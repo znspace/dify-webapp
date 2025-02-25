@@ -79,7 +79,6 @@ export type IChatItem = {
    */
   more?: MessageMore
   annotation?: Annotation
-  useCurrentUserAvatar?: boolean
   isOpeningStatement?: boolean
   suggestedQuestions?: string[]
   log?: { role: string; text: string }[]

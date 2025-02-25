@@ -1,26 +1,28 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 'use client'
+import { useBoolean, useGetState } from 'ahooks'
+import produce, { setAutoFreeze } from 'immer'
 import type { FC } from 'react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import produce, { setAutoFreeze } from 'immer'
-import { useBoolean, useGetState } from 'ahooks'
-import useConversation from '@/hooks/use-conversation'
+import Operation from './chat/operation'
+import s from './style.module.css'
+import AppUnavailable from '@/app/components/app-unavailable'
+import Loading from '@/app/components/base/loading'
 import Toast from '@/app/components/base/toast'
-import Sidebar from '@/app/components/sidebar'
+import Chat from '@/app/components/chat'
 import ConfigSence from '@/app/components/config-scence'
 import Header from '@/app/components/header'
-import { fetchAppParams, fetchChatList, fetchConversations, generationConversationName, sendChatMessage, updateFeedback } from '@/service'
+import Sidebar from '@/app/components/sidebar'
+import { API_KEY, APP_ID, APP_INFO, isShowPrompt, promptTemplate } from '@/config'
+import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
+import useConversation from '@/hooks/use-conversation'
+import { setLocaleOnClient } from '@/i18n/client'
+import { fetchAppParams, fetchChatList, fetchConversations, generationConversationName, sendChatMessage, sendChatMessageWithStreaming, updateFeedback } from '@/service'
 import type { ChatItem, ConversationItem, Feedbacktype, PromptConfig, VisionFile, VisionSettings } from '@/types/app'
 import { Resolution, TransferMethod, WorkflowRunningStatus } from '@/types/app'
-import Chat from '@/app/components/chat'
-import { setLocaleOnClient } from '@/i18n/client'
-import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
-import Loading from '@/app/components/base/loading'
-import { replaceVarWithValues, userInputsFormToPromptVariables } from '@/utils/prompt'
-import AppUnavailable from '@/app/components/app-unavailable'
-import { API_KEY, APP_ID, APP_INFO, isShowPrompt, promptTemplate } from '@/config'
 import type { Annotation as AnnotationType } from '@/types/log'
+import { replaceVarWithValues, userInputsFormToPromptVariables } from '@/utils/prompt'
 import { addFileInfos, sortAgentSorts } from '@/utils/tools'
 
 export type IMainProps = {
@@ -51,7 +53,7 @@ const Main: FC<IMainProps> = () => {
 
   useEffect(() => {
     if (APP_INFO?.title)
-      document.title = `${APP_INFO.title} - Powered by Dify`
+      document.title = `${APP_INFO.title}`
   }, [APP_INFO?.title])
 
   // onData change thought (the produce obj). https://github.com/immerjs/immer/issues/576
@@ -84,13 +86,15 @@ const Main: FC<IMainProps> = () => {
 
   const [conversationIdChangeBecauseOfNew, setConversationIdChangeBecauseOfNew, getConversationIdChangeBecauseOfNew] = useGetState(false)
   const [isChatStarted, { setTrue: setChatStarted, setFalse: setChatNotStarted }] = useBoolean(false)
+  console.log('🚀 ~ isChatStarted:', isChatStarted)
   const handleStartChat = (inputs: Record<string, any>) => {
+    console.log('🚀 ~ handleStartChat ~ inputs:', inputs)
     createNewChat()
     setConversationIdChangeBecauseOfNew(true)
     setCurrInputs(inputs)
+    setChatList(generateNewChatListWithOpenStatement('', inputs))
     setChatStarted()
     // parse variables in introduction
-    setChatList(generateNewChatListWithOpenStatement('', inputs))
   }
   const hasSetInputs = (() => {
     if (!isNewConversation)
@@ -98,6 +102,7 @@ const Main: FC<IMainProps> = () => {
 
     return isChatStarted
   })()
+  console.log('🚀 ~ hasSetInputs ~ hasSetInputs:', hasSetInputs)
 
   const conversationName = currConversationInfo?.name || t('app.chat.newChatDefaultName') as string
   const conversationIntroduction = currConversationInfo?.introduction || ''
@@ -179,6 +184,7 @@ const Main: FC<IMainProps> = () => {
     if (chatListDomRef.current)
       chatListDomRef.current.scrollTop = chatListDomRef.current.scrollHeight
   }, [chatList, currConversationId])
+  console.log('🚀 ~ chatList:', chatList)
   // user can not edit inputs if user had send message
   const canEditInputs = !chatList.some(item => item.isAnswer === false) && isNewConversation
   const createNewChat = () => {
@@ -231,7 +237,6 @@ const Main: FC<IMainProps> = () => {
         if (error) {
           Toast.notify({ type: 'error', message: error })
           throw new Error(error)
-          return
         }
         const _conversationId = getConversationIdFromStorage(APP_ID)
         const isNotNewConversation = conversations.some(item => item.id === _conversationId)
@@ -296,13 +301,10 @@ const Main: FC<IMainProps> = () => {
     return true
   }
 
-  const [controlFocus, setControlFocus] = useState(0)
   const [openingSuggestedQuestions, setOpeningSuggestedQuestions] = useState<string[]>([])
   const [messageTaskId, setMessageTaskId] = useState('')
   const [hasStopResponded, setHasStopResponded, getHasStopResponded] = useGetState(false)
   const [isRespondingConIsCurrCon, setIsRespondingConCurrCon, getIsRespondingConIsCurrCon] = useGetState(true)
-  const [userQuery, setUserQuery] = useState('')
-
   const updateCurrentQA = ({
     responseItem,
     questionId,
@@ -326,13 +328,14 @@ const Main: FC<IMainProps> = () => {
     setChatList(newListWithAnswer)
   }
 
-  const handleSend = async (message: string, files?: VisionFile[]) => {
+  const handleSend = async (message: string, files?: VisionFile[], extra: Record<string, any> = {}) => {
     if (isResponding) {
       notify({ type: 'info', message: t('app.errorMessage.waitForResponse') })
       return
     }
+
     const data: Record<string, any> = {
-      inputs: currInputs,
+      inputs: { ...currInputs, ...extra },
       query: message,
       conversation_id: isNewConversation ? null : currConversationId,
     }
@@ -384,39 +387,60 @@ const Main: FC<IMainProps> = () => {
     let tempNewConversationId = ''
 
     setRespondingTrue()
-    sendChatMessage(data, {
+
+    if (/^客户持仓检视$/.test(message)) {
+      // await handlePresetScene(message)
+      const res: any = await sendChatMessage(data)
+      console.log('🚀 ~ handleSend ~ res:', res)
+      responseItem.content = res.answer
+      console.log('🚀 ~ handleSend ~ responseItem:', responseItem)
+      updateCurrentQA({
+        responseItem,
+        questionId,
+        placeholderAnswerId,
+        questionItem,
+      })
+      setRespondingFalse()
+      return
+    }
+    sendChatMessageWithStreaming(data, {
       getAbortController: (abortController) => {
         setAbortController(abortController)
       },
       onData: (message: string, isFirstMessage: boolean, { conversationId: newConversationId, messageId, taskId }: any) => {
-        if (!isAgentMode) {
-          responseItem.content = responseItem.content + message
-        }
-        else {
-          const lastThought = responseItem.agent_thoughts?.[responseItem.agent_thoughts?.length - 1]
-          if (lastThought)
-            lastThought.thought = lastThought.thought + message // need immer setAutoFreeze
-        }
-        if (messageId && !hasSetResponseId) {
-          responseItem.id = messageId
-          hasSetResponseId = true
-        }
+        try {
+          if (!isAgentMode) {
+            responseItem.content = responseItem.content + message
+          }
+          else {
+            const lastThought = responseItem.agent_thoughts?.[responseItem.agent_thoughts?.length - 1]
+            if (lastThought)
+              lastThought.thought = lastThought.thought + message // need immer setAutoFreeze
+          }
+          if (messageId && !hasSetResponseId) {
+            responseItem.id = messageId
+            hasSetResponseId = true
+          }
 
-        if (isFirstMessage && newConversationId)
-          tempNewConversationId = newConversationId
+          if (isFirstMessage && newConversationId)
+            tempNewConversationId = newConversationId
 
-        setMessageTaskId(taskId)
-        // has switched to other conversation
-        if (prevTempNewConversationId !== getCurrConversationId()) {
-          setIsRespondingConCurrCon(false)
-          return
+          setMessageTaskId(taskId)
+          // has switched to other conversation
+          if (prevTempNewConversationId !== getCurrConversationId()) {
+            setIsRespondingConCurrCon(false)
+            return
+          }
+          updateCurrentQA({
+            responseItem,
+            questionId,
+            placeholderAnswerId,
+            questionItem,
+          })
         }
-        updateCurrentQA({
-          responseItem,
-          questionId,
-          placeholderAnswerId,
-          questionItem,
-        })
+        catch (error) {
+          console.error('sendChatMessage >>>>>', error)
+        }
       },
       async onCompleted(hasError?: boolean) {
         if (hasError)
@@ -599,6 +623,10 @@ const Main: FC<IMainProps> = () => {
     notify({ type: 'success', message: t('common.api.success') })
   }
 
+  const handleStop = () => {
+
+  }
+
   const renderSidebar = () => {
     if (!APP_ID || !APP_INFO || !promptConfig)
       return null
@@ -626,7 +654,7 @@ const Main: FC<IMainProps> = () => {
         onShowSideBar={showSidebar}
         onCreateNewChat={() => handleConversationIdChange('-1')}
       />
-      <div className="flex rounded-t-2xl bg-white overflow-hidden">
+      <div className={`flex rounded-t-2xl overflow-hidden ${s.bgImg}`} >
         {/* sidebar */}
         {!isMobile && renderSidebar()}
         {isMobile && isShowSidebar && (
@@ -639,6 +667,7 @@ const Main: FC<IMainProps> = () => {
             </div>
           </div>
         )}
+
         {/* main */}
         <div className='flex-grow flex flex-col h-[calc(100vh_-_3rem)] overflow-y-auto'>
           <ConfigSence
@@ -651,23 +680,37 @@ const Main: FC<IMainProps> = () => {
             canEditInputs={canEditInputs}
             savedInputs={currInputs as Record<string, any>}
             onInputsChange={setCurrInputs}
+            onSend={handleSend}
           ></ConfigSence>
 
-          {
-            hasSetInputs && (
-              <div className='relative grow h-[200px] pc:w-[794px] max-w-full mobile:w-full pb-[66px] mx-auto mb-3.5 overflow-hidden'>
+          <div className='relative grow h-[200px] pc:w-[794px] max-w-full mobile:w-full pb-[66px] mx-auto mb-3.5 overflow-hidden'>
+            {
+              hasSetInputs && (
                 <div className='h-full overflow-y-auto' ref={chatListDomRef}>
                   <Chat
+                    isMobile={isMobile}
                     chatList={chatList}
                     onSend={handleSend}
+                    onStopResponding={handleStop}
                     onFeedback={handleFeedback}
                     isResponding={isResponding}
                     checkCanSend={checkCanSend}
                     visionConfig={visionConfig}
                   />
                 </div>
-              </div>)
-          }
+              )
+            }
+
+            <Operation
+              isMobile={isMobile}
+              isResponding={isResponding}
+              checkCanSend={checkCanSend}
+              onSend={handleSend}
+              onStopResponding={handleStop}
+              visionConfig={visionConfig}
+            />
+
+          </div>
         </div>
       </div>
     </div>

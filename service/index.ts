@@ -2,7 +2,7 @@ import type { IOnCompleted, IOnData, IOnError, IOnFile, IOnMessageEnd, IOnMessag
 import { get, post, ssePost } from './base'
 import type { Feedbacktype } from '@/types/app'
 
-export const sendChatMessage = async (
+export const sendChatMessageWithStreaming = async (
   body: Record<string, any>,
   {
     onData,
@@ -32,12 +32,31 @@ export const sendChatMessage = async (
     onWorkflowFinished: IOnWorkflowFinished
   },
 ) => {
+  const sid = localStorage.getItem('HWM_bss.sid')
   return ssePost('chat-messages', {
     body: {
       ...body,
+      inputs: {
+        ...body.inputs,
+        sid,
+      },
       response_mode: 'streaming',
     },
   }, { onData, onCompleted, onThought, onFile, onError, getAbortController, onMessageEnd, onMessageReplace, onNodeStarted, onWorkflowStarted, onWorkflowFinished, onNodeFinished })
+}
+
+export const sendChatMessage = (body: Record<string, any>) => {
+  const sid = localStorage.getItem('HWM_bss.sid')
+  return post('chat-messages', {
+    body: {
+      response_mode: false,
+      ...body,
+      inputs: {
+        ...body.inputs,
+        sid,
+      },
+    },
+  })
 }
 
 export const fetchConversations = async () => {
@@ -59,4 +78,8 @@ export const updateFeedback = async ({ url, body }: { url: string; body: Feedbac
 
 export const generationConversationName = async (id: string) => {
   return post(`conversations/${id}/name`, { body: { auto_generate: true } })
+}
+
+export const getCustList = async () => {
+  return get('custList', {})
 }

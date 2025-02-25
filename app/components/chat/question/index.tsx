@@ -1,18 +1,17 @@
 'use client'
 import type { FC } from 'react'
 import React from 'react'
-import type { IChatItem } from '../type'
 import s from '../style.module.css'
+import type { IChatItem } from '../type'
 
-import { Markdown } from '@/app/components/base/markdown'
 import ImageGallery from '@/app/components/base/image-gallery'
+import { Markdown } from '@/app/components/base/markdown'
 
-type IQuestionProps = Pick<IChatItem, 'id' | 'content' | 'useCurrentUserAvatar'> & {
+type IQuestionProps = Pick<IChatItem, 'id' | 'content'> & {
   imgSrcs?: string[]
 }
 
-const Question: FC<IQuestionProps> = ({ id, content, useCurrentUserAvatar, imgSrcs }) => {
-  const userName = ''
+const Question: FC<IQuestionProps> = ({ id, content, imgSrcs }) => {
   return (
     <div className='flex items-start justify-end' key={id}>
       <div>
@@ -27,15 +26,7 @@ const Question: FC<IQuestionProps> = ({ id, content, useCurrentUserAvatar, imgSr
           </div>
         </div>
       </div>
-      {useCurrentUserAvatar
-        ? (
-          <div className='w-10 h-10 shrink-0 leading-10 text-center mr-2 rounded-full bg-primary-600 text-white'>
-            {userName?.[0].toLocaleUpperCase()}
-          </div>
-        )
-        : (
-          <div className={`${s.questionIcon} w-10 h-10 shrink-0 `}></div>
-        )}
+
     </div>
   )
 }

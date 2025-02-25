@@ -1,6 +1,7 @@
 .answerIcon {
   position: relative;
-  background: url(./icons/robot.svg);
+  background: url(./icons/app_icon.png);
+  background-size: 100% 100%;
 }
 
 .typeingIcon {
@@ -18,37 +19,12 @@
 }
 
 
-.questionIcon {
-  background: url(./icons/default-avatar.jpg);
-  background-size: contain;
-  border-radius: 50%;
-}
-
-.answer::before,
-.question::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  width: 8px;
-  height: 12px;
-}
-
-.answer::before {
-  left: 0;
-  background: url(./icons/answer.svg) no-repeat;
-}
-
 .answerWrap .itemOperation {
   display: none;
 }
 
 .answerWrap:hover .itemOperation {
   display: flex;
-}
-
-.question::before {
-  right: 0;
-  background: url(./icons/question.svg) no-repeat;
 }
 
 .textArea {
@@ -81,6 +57,10 @@
   background-image: url(./icons/send-active.svg);
   background-color: #EBF5FF;
 }
+
+/* .cancelBtn {
+  background: url(./icons/cancel.svg) center center no-repeat;
+} */
 
 .textArea:focus+div .count {
   display: block;

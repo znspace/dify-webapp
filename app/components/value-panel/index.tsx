@@ -4,7 +4,6 @@ import React from 'react'
 import cn from 'classnames'
 import { useTranslation } from 'react-i18next'
 import s from './style.module.css'
-import { StarIcon } from '@/app/components//welcome/massive-component'
 import Button from '@/app/components/base/button'
 
 export type ITemplateVarPanelProps = {
@@ -18,18 +17,11 @@ const TemplateVarPanel: FC<ITemplateVarPanelProps> = ({
   className,
   header,
   children,
-  isFold,
 }) => {
   return (
-    <div className={cn(isFold ? 'border border-indigo-100' : s.boxShodow, className, 'rounded-xl ')}>
-      {/* header */}
-      <div
-        className={cn(isFold && 'rounded-b-xl', 'rounded-t-xl px-6 py-4 bg-indigo-25 text-xs')}
-      >
-        {header}
-      </div>
+    <div className={cn(className, 'rounded-xl shadow-lg')}>
       {/* body */}
-      {!isFold && children && (
+      {children && (
         <div className='rounded-b-xl p-6'>
           {children}
         </div>
@@ -44,7 +36,6 @@ export const PanelTitle: FC<{ title: string; className?: string }> = ({
 }) => {
   return (
     <div className={cn(className, 'flex items-center space-x-1 text-indigo-600')}>
-      <StarIcon />
       <span className='text-xs'>{title}</span>
     </div>
   )
